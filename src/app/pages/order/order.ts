@@ -1,16 +1,17 @@
-import { Component ,signal} from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { Header } from '../../header/header';
-import { DELIVERY_SIZES,DELIVERY_SPEEDS } from './order.config';
-import { FormGroup, FormBuilder, Validators,ReactiveFormsModule } from '@angular/forms';
-import { UpperCasePipe} from '@angular/common';
+import { DELIVERY_SIZES, DELIVERY_SPEEDS } from './order.config';
+import { FormGroup, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { UpperCasePipe } from '@angular/common';
+import { DeliveryApi } from '../../services/delivery-api';
 
 declare var ymaps: any;
 
 @Component({
-  selector: 'app-order',
-  imports: [Header, UpperCasePipe,ReactiveFormsModule],
-  templateUrl: './order.html',
-  styleUrl: './order.css',
+    selector: 'app-order',
+    imports: [Header, UpperCasePipe, ReactiveFormsModule],
+    templateUrl: './order.html',
+    styleUrl: './order.css',
 })
 export class Order {
     public readonly sizes = DELIVERY_SIZES;
@@ -25,7 +26,7 @@ export class Order {
     public orderId: any = signal(null);
     public calculationResult: any = signal(null);
 
-    constructor(private formBuilder: FormBuilder) {
+    constructor(private formBuilder: FormBuilder, private deliveryApi: DeliveryApi) {
         this.routeForm = this.formBuilder.group({
             from: ['', Validators.required],
             to: ['', Validators.required],
@@ -54,12 +55,12 @@ export class Order {
     }
 
     public selectSize(size: string) {
-    this.routeForm.controls['size'].setValue(size);
+        this.routeForm.controls['size'].setValue(size);
     }
 
     public selectSpeed(speed: string) {
-    this.routeForm.controls['speed'].setValue(speed);
-}
+        this.routeForm.controls['speed'].setValue(speed);
+    }
 
     public calculate() {
         this.calculationResult.set(null);
@@ -68,7 +69,7 @@ export class Order {
             return;
         }
 
-        const {from, to, size, speed} = this.routeForm.getRawValue();
+        const { from, to, size, speed } = this.routeForm.getRawValue();
 
         if (this.mapRoute) {
             this.map.geoObjects.remove(this.mapRoute);
@@ -76,8 +77,8 @@ export class Order {
         }
 
         this.mapRoute = new ymaps.multiRouter.MultiRoute(
-            {referencePoints: [from, to]},
-            {boundsAutoApply: false}
+            { referencePoints: [from, to] },
+            { boundsAutoApply: false }
         );
         this.map.geoObjects.add(this.mapRoute);
 
@@ -121,11 +122,11 @@ export class Order {
     }
 
     private failedCalculation() {
-    this.calculationResult.set(null);
-    alert('Не удалось построить маршрут. Проверьте адреса и выбранные параметры.');
-}
+        this.calculationResult.set(null);
+        alert('Не удалось построить маршрут. Проверьте адреса и выбранные параметры.');
+    }
 
-public submitOrder() {
+    public submitOrder() {
         const calculation = this.calculationResult();
         if (!calculation) {
             alert('Сначала рассчитайте стоимость, чтобы оформить заявку');
@@ -137,19 +138,26 @@ public submitOrder() {
             return;
         }
 
-        const {name, phone, comment} = this.orderForm.getRawValue();
+        const { name, phone, comment } = this.orderForm.getRawValue();
         const trimmedName = (name ?? '').trim();
         const trimmedPhone = (phone ?? '').trim();
         const trimmedComment = (comment ?? '').trim();
 
         const payload = {
-            customer: {name: trimmedName, phone: trimmedPhone, comment: trimmedComment},
+            customer: { name: trimmedName, phone: trimmedPhone, comment: trimmedComment },
             calculation: calculation,
             createdAt: new Date().toISOString()
         };
 
-        console.log(payload);
-        this.orderId.set(1);
+        this.deliveryApi.createDelivery(payload).subscribe((response) => {
+            if ('error' in response) {
+                alert(response.error);
+                return;
+            }
+
+            this.orderId.set(response.id);
+        });
+        
     }
 
 }
